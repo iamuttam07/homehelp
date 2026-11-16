@@ -73,7 +73,14 @@ src/main/resources/db/migration/  Flyway SQL migrations
 src/test/java/com/uel/homehelp/   tests
 compose.yaml                      local Postgres, Redis, MailHog
 .github/workflows/ci.yml          CI build and tests
+.github/ISSUE_TEMPLATE/           issue templates (plus PR template in .github/)
+docs/adr/                         architecture decision records
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, branch naming, and the migration rules.
+Design decisions are recorded in [docs/adr](docs/adr).
 
 ## License
 
