@@ -52,6 +52,8 @@ Optional longer explanation of what changed and why.
 
 - **Package by feature**, not by layer: `com.uel.homehelp.booking`, `com.uel.homehelp.catalog`, and so on.
 - **Validate input** at the API boundary with Bean Validation (`@Valid`, `@NotBlank`, ...).
+- **Report expected errors** by throwing a subclass of `ApiException` (or `ResourceNotFoundException`), not `ResponseStatusException`. `GlobalExceptionHandler` turns everything into problem details.
+- **Document endpoints** with `@Tag` on the controller and `@Operation(summary = ...)` on each method so they read well in Swagger UI.
 - **Never log secrets** or personal data (passwords, tokens, full addresses).
 - **Tests:** every new feature or bug fix comes with tests. Integration tests import `TestcontainersConfiguration`.
 

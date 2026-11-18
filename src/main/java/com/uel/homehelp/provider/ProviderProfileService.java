@@ -3,12 +3,11 @@ package com.uel.homehelp.provider;
 import java.util.UUID;
 
 import org.springframework.context.event.EventListener;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.uel.homehelp.common.Strings;
+import com.uel.homehelp.common.web.ResourceNotFoundException;
 import com.uel.homehelp.user.Role;
 import com.uel.homehelp.user.UserRegisteredEvent;
 
@@ -32,7 +31,7 @@ class ProviderProfileService {
 	@Transactional(readOnly = true)
 	ProviderProfile get(UUID userId) {
 		return this.profiles.findById(userId)
-			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Provider profile not found"));
+			.orElseThrow(() -> new ResourceNotFoundException("Provider profile"));
 	}
 
 	@Transactional

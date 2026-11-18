@@ -3,10 +3,10 @@ package com.uel.homehelp.address;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+
+import com.uel.homehelp.common.web.ResourceNotFoundException;
 
 /**
  * A user's addresses.
@@ -34,7 +34,7 @@ class AddressService {
 
 	@Transactional(readOnly = true)
 	Address get(UUID userId, UUID addressId) {
-		return this.addresses.findByIdAndUserId(addressId, userId).orElseThrow(AddressNotFoundException::new);
+		return this.addresses.findByIdAndUserId(addressId, userId).orElseThrow(() -> new ResourceNotFoundException("Address"));
 	}
 
 	/**
@@ -92,7 +92,7 @@ class AddressService {
 
 	private void lockOwner(UUID userId) {
 		this.addresses.lockOwner(userId)
-			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User no longer exists"));
+			.orElseThrow(() -> new ResourceNotFoundException("User"));
 	}
 
 }

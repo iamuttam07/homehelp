@@ -66,7 +66,49 @@ Never edit a migration after it has been committed; add a new one instead.
 
 ## API
 
-Errors are returned as [problem details](https://www.rfc-editor.org/rfc/rfc9457) (`application/problem+json`).
+### Interactive docs (Swagger UI)
+
+With the API running, open **http://localhost:8080/swagger-ui.html**.
+
+1. Run `POST /api/auth/login` there and copy the `accessToken` from the response.
+2. Click **Authorize** (top right) and paste the token (without "Bearer").
+3. Try any endpoint. The token is remembered when you reload the page.
+
+The machine-readable OpenAPI spec is at http://localhost:8080/v3/api-docs (useful for generating a frontend client).
+Set `API_DOCS_ENABLED=false` to turn both off, for example in production.
+
+### Errors
+
+Every error, including 401 and 403, is returned as a [problem detail](https://www.rfc-editor.org/rfc/rfc9457) (`application/problem+json`):
+
+```json
+{
+  "type": "urn:homehelp:problem:validation-failed",
+  "title": "Validation failed",
+  "status": 400,
+  "detail": "One or more fields are invalid.",
+  "instance": "/api/auth/register",
+  "errors": [
+    { "field": "email", "message": "must be a well-formed email address" }
+  ]
+}
+```
+
+`type` is stable, so clients should switch on it rather than on `title` or `detail`.
+
+| `type` (after `urn:homehelp:problem:`) | Status | When |
+|---|---|---|
+| `validation-failed` | 400 | Invalid fields; see `errors` |
+| `malformed-request` | 400 | Body missing or not valid JSON |
+| `invalid-parameter` | 400 | Bad path or query parameter, e.g. an id that isn't a UUID |
+| `unauthorized` / `invalid-token` | 401 | No access token / invalid or expired token |
+| `invalid-credentials` / `invalid-refresh-token` | 401 | Login or refresh failed |
+| `forbidden` | 403 | Logged in, but the role isn't allowed |
+| `*-not-found` (e.g. `address-not-found`) | 404 | Doesn't exist, or belongs to someone else |
+| `email-already-registered`, `address-limit-reached` | 409 | Business rule conflicts |
+| `concurrent-update` | 409 | Someone else changed the item at the same time; reload and retry |
+| `data-conflict` | 409 | A database constraint rejected the change |
+| `internal-error` | 500 | Unexpected; includes an `errorId` that is also in the server log |
 
 ### Register
 
@@ -196,7 +238,7 @@ src/main/java/com/uel/homehelp/   application code, one package per feature
   user/                           accounts, registration, current user
   address/                        user addresses
   provider/                       provider profiles
-  common/                         small shared helpers
+  common/                         shared helpers, error handling, OpenAPI config
 src/main/resources/               configuration
 src/main/resources/db/migration/  Flyway SQL migrations
 src/test/java/com/uel/homehelp/   tests

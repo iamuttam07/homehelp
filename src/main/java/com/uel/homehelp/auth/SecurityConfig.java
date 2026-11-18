@@ -50,8 +50,8 @@ class SecurityConfig {
 	private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
 
 	@Bean
-	SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationConverter jwtAuthenticationConverter)
-			throws Exception {
+	SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationConverter jwtAuthenticationConverter,
+			ProblemDetailsSecurityHandler problemDetails) throws Exception {
 		http.csrf(AbstractHttpConfigurer::disable)
 			.httpBasic(AbstractHttpConfigurer::disable)
 			.formLogin(AbstractHttpConfigurer::disable)
@@ -63,11 +63,17 @@ class SecurityConfig {
 						"/api/auth/logout")
 				.permitAll()
 				.requestMatchers("/error").permitAll()
+				.requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
 				.requestMatchers("/api/admin/**").hasRole("ADMIN")
 				.requestMatchers("/api/provider/**").hasRole("PROVIDER")
 				.anyRequest().authenticated())
 			.oauth2ResourceServer((resourceServer) -> resourceServer
-				.jwt((jwt) -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
+				.jwt((jwt) -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
+				.authenticationEntryPoint(problemDetails)
+				.accessDeniedHandler(problemDetails))
+			.exceptionHandling((exceptions) -> exceptions
+				.authenticationEntryPoint(problemDetails)
+				.accessDeniedHandler(problemDetails));
 		return http.build();
 	}
 
