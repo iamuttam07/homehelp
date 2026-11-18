@@ -65,6 +65,12 @@ public class User {
 		this.role = role;
 	}
 
+	/** Changes the details a user may edit themselves. */
+	void updateDetails(String fullName, String phone) {
+		this.fullName = fullName;
+		this.phone = phone;
+	}
+
 	public UUID getId() {
 		return this.id;
 	}

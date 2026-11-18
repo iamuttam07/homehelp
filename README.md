@@ -126,7 +126,47 @@ Refresh tokens are single-use. Reusing an old one revokes all of that user's ses
 
 ### Current user
 
-`GET /api/users/me` returns the logged-in user (requires a token).
+| Endpoint | Body | Result |
+|---|---|---|
+| `GET /api/users/me` | | The logged-in user |
+| `PUT /api/users/me` | `{"fullName": "...", "phone": "+44..."}` | Updated user. Omitting `phone` removes it. Email and role can't be changed here. |
+
+### Addresses
+
+Any logged-in user can manage their own addresses, up to **10** per user (adding an 11th returns `409 Address limit reached`). Other users' addresses always return `404`.
+
+| Endpoint | Result |
+|---|---|
+| `GET /api/users/me/addresses` | All addresses, default first |
+| `POST /api/users/me/addresses` | `201` with the new address. The first address becomes the default. |
+| `GET /api/users/me/addresses/{id}` | One address |
+| `PUT /api/users/me/addresses/{id}` | Replaces the address fields |
+| `PUT /api/users/me/addresses/{id}/default` | Makes it the default (the previous default stops being one) |
+| `DELETE /api/users/me/addresses/{id}` | `204`. If it was the default, the oldest remaining address becomes the default. |
+
+```json
+{
+  "label": "Home",
+  "line1": "12 Brick Lane",
+  "line2": "Flat 3",
+  "city": "London",
+  "postcode": "E1 6AN",
+  "countryCode": "GB",
+  "latitude": 51.5202,
+  "longitude": -0.0716
+}
+```
+
+`label` and `line2` are optional. The client supplies the coordinates (for example from a map). The database derives a PostGIS `location` from them for distance queries (see [ADR 0004](docs/adr/0004-store-coordinates-with-generated-postgis-location.md)).
+
+### Provider profile
+
+Providers only (`/api/provider/**`). A profile is created automatically when someone registers as a provider.
+
+| Endpoint | Body | Result |
+|---|---|---|
+| `GET /api/provider/profile` | | The provider's profile |
+| `PUT /api/provider/profile` | `{"bio": "...", "yearsOfExperience": 12}` | Updated profile. `bio` up to 1000 characters, experience 0 to 60. |
 
 ### Access rules
 
@@ -154,6 +194,9 @@ Access tokens last 15 minutes and refresh tokens 14 days (see [ADR 0003](docs/ad
 src/main/java/com/uel/homehelp/   application code, one package per feature
   auth/                           login, tokens, security rules
   user/                           accounts, registration, current user
+  address/                        user addresses
+  provider/                       provider profiles
+  common/                         small shared helpers
 src/main/resources/               configuration
 src/main/resources/db/migration/  Flyway SQL migrations
 src/test/java/com/uel/homehelp/   tests
