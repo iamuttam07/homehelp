@@ -63,6 +63,7 @@ class SecurityConfig {
 						"/api/auth/logout")
 				.permitAll()
 				.requestMatchers("/error").permitAll()
+				.requestMatchers(HttpMethod.GET, "/api/catalog/**").permitAll()
 				.requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
 				.requestMatchers("/api/admin/**").hasRole("ADMIN")
 				.requestMatchers("/api/provider/**").hasRole("PROVIDER")

@@ -64,6 +64,8 @@ GitHub Actions (`.github/workflows/ci.yml`) runs `./mvnw verify` on every push t
 Schema changes live in `src/main/resources/db/migration` as versioned SQL files (`V1__...sql`, `V2__...sql`).
 Never edit a migration after it has been committed; add a new one instead.
 
+The catalog starts with 6 categories and 18 services (migration `V7__seed_catalog.sql`), so a fresh database is ready to browse.
+
 ## API
 
 ### Interactive docs (Swagger UI)
@@ -201,6 +203,38 @@ Any logged-in user can manage their own addresses, up to **10** per user (adding
 
 `label` and `line2` are optional. The client supplies the coordinates (for example from a map). The database derives a PostGIS `location` from them for distance queries (see [ADR 0004](docs/adr/0004-store-coordinates-with-generated-postgis-location.md)).
 
+### Catalog (public)
+
+No login needed. Only active categories and services are shown.
+
+| Endpoint | Result |
+|---|---|
+| `GET /api/catalog/categories` | Categories in display order, each with `serviceCount` |
+| `GET /api/catalog/categories/{slug}` | One category, e.g. `plumbing` |
+| `GET /api/catalog/services` | A page of services (filters below) |
+| `GET /api/catalog/services/{slug}` | One service, e.g. `leak-repair` |
+
+Service search parameters (all optional, combined with AND):
+
+| Parameter | Example | Meaning |
+|---|---|---|
+| `category` | `plumbing` | Category slug |
+| `q` | `repair` | Text in the name or description, case-insensitive |
+| `minPrice` / `maxPrice` | `20` / `100` | Base price range, inclusive |
+| `maxDuration` | `60` | Longest duration in minutes |
+| `sort` | `price_asc` | `name` (default), `price_asc`, `price_desc`, `duration` |
+| `page` / `size` | `0` / `20` | Zero-based page; 1 to 50 per page |
+
+```bash
+curl -s "http://localhost:8080/api/catalog/services?category=cleaning&maxPrice=100&sort=price_asc" | jq
+```
+
+Paginated responses use the same shape everywhere:
+
+```json
+{ "items": [ ... ], "page": 0, "size": 20, "totalItems": 18, "totalPages": 1, "hasNext": false }
+```
+
 ### Provider profile
 
 Providers only (`/api/provider/**`). A profile is created automatically when someone registers as a provider.
@@ -214,7 +248,7 @@ Providers only (`/api/provider/**`). A profile is created automatically when som
 
 | Path | Who |
 |---|---|
-| `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh`, `/api/auth/logout`, `/actuator/health`, `/actuator/info` | Anyone |
+| `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh`, `/api/auth/logout`, `GET /api/catalog/**`, `/actuator/health`, `/actuator/info`, Swagger UI | Anyone |
 | `/api/admin/**` | `ADMIN` only |
 | `/api/provider/**` | `PROVIDER` only |
 | Everything else | Any logged-in user |
@@ -238,6 +272,7 @@ src/main/java/com/uel/homehelp/   application code, one package per feature
   user/                           accounts, registration, current user
   address/                        user addresses
   provider/                       provider profiles
+  catalog/                        service categories and services
   common/                         shared helpers, error handling, OpenAPI config
 src/main/resources/               configuration
 src/main/resources/db/migration/  Flyway SQL migrations

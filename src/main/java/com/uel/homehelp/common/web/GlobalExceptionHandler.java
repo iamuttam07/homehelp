@@ -22,9 +22,11 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
@@ -60,6 +62,25 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
 		ProblemDetail problem = ApiException.problem(HttpStatus.BAD_REQUEST, "validation-failed",
 				"Validation failed", "One or more fields are invalid.");
+		problem.setProperty("errors", errors);
+		return handleExceptionInternal(ex, problem, headers, status, request);
+	}
+
+	/** Constraint violations on query or path parameters, e.g. {@code size=500}. */
+	@Override
+	protected ResponseEntity<Object> handleHandlerMethodValidationException(HandlerMethodValidationException ex,
+			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+		List<Map<String, String>> errors = new ArrayList<>();
+		ex.getParameterValidationResults().forEach((result) -> {
+			RequestParam param = result.getMethodParameter().getParameterAnnotation(RequestParam.class);
+			String name = (param != null && !param.name().isEmpty()) ? param.name()
+					: result.getMethodParameter().getParameterName();
+			result.getResolvableErrors().forEach((error) -> errors.add(fieldError(name, error.getDefaultMessage())));
+		});
+		errors.sort((a, b) -> (a.get("field") + a.get("message")).compareTo(b.get("field") + b.get("message")));
+
+		ProblemDetail problem = ApiException.problem(HttpStatus.BAD_REQUEST, "validation-failed",
+				"Validation failed", "One or more parameters are invalid.");
 		problem.setProperty("errors", errors);
 		return handleExceptionInternal(ex, problem, headers, status, request);
 	}
