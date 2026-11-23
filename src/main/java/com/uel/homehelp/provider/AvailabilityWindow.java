@@ -48,6 +48,10 @@ class AvailabilityWindow {
 		this.endTime = endTime;
 	}
 
+	UUID getProviderId() {
+		return this.providerId;
+	}
+
 	DayOfWeek getDayOfWeek() {
 		return this.dayOfWeek;
 	}

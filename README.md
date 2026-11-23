@@ -53,7 +53,7 @@ Stop with `docker compose down` (add `-v` to wipe data).
 The app connects to the Postgres started by `docker compose` and Flyway applies any pending migrations on startup.
 Check it is running: http://localhost:8080/actuator/health should return `{"status":"UP"}`.
 
-Tests don't need `docker compose`: they start their own throwaway PostGIS container via Testcontainers.
+Tests don't need `docker compose`: they start their own throwaway PostGIS and Redis containers via Testcontainers.
 
 ### Continuous integration
 
@@ -308,6 +308,7 @@ Access tokens last 15 minutes and refresh tokens 14 days (see [ADR 0003](docs/ad
 | `JWT_ACCESS_TOKEN_TTL` | `15m` | |
 | `JWT_REFRESH_TOKEN_TTL` | `14d` | |
 | `HOMEHELP_ADMIN_EMAIL` / `HOMEHELP_ADMIN_PASSWORD` | unset | Creates the first admin at startup (see above) |
+| `SLOT_HOLD_TTL` | `10m` | How long a slot hold lasts |
 
 ### Provider onboarding and approval
 
@@ -328,6 +329,48 @@ ONBOARDING ──submit──► PENDING_REVIEW ──approve──► APPROVED
 | `POST /api/admin/providers/{id}/approve` | Admin | `APPROVED`. Only from `PENDING_REVIEW`, otherwise `409`. |
 | `POST /api/admin/providers/{id}/reject` | Admin | `{"reason": "..."}` (required, shown to the provider). Only from `PENDING_REVIEW`. |
 
+### Available slots
+
+`GET /api/slots?service=leak-repair&date=2026-11-30&addressId={id}&timeZone=Europe/London` (logged in; the address must be yours)
+
+Returns the times on that date when at least one provider can do the job:
+
+```json
+{
+  "service": { "slug": "leak-repair", "name": "Leak repair", "durationMinutes": 60 },
+  "date": "2026-11-30",
+  "timeZone": "Europe/London",
+  "addressId": "…",
+  "slots": [
+    { "start": "2026-11-30T09:00:00Z", "end": "2026-11-30T10:00:00Z", "availableProviders": 2 }
+  ]
+}
+```
+
+A provider counts when they are `APPROVED`, offer the service, cover the address with their service area, and are working for the whole job.
+
+- Slots start every 30 minutes on the clock (:00 and :30). A job never spans two windows, even touching ones.
+- At least 2 hours' notice; dates from today up to 30 days ahead (otherwise `400 invalid-date`).
+- `timeZone` (default `Europe/London`) is the zone of `date` and of the returned times. Region ids only; fixed offsets like `+01:00` are rejected because they ignore daylight saving.
+- Provider hours are converted from their own time zone, with correct lengths across clock changes.
+- Times held by other customers are left out (your own hold still shows). Confirmed bookings are subtracted in Step 18.
+
+### Slot holds
+
+While a customer finishes booking, their chosen slot is held for them for **10 minutes**: one free provider is reserved, and the time disappears from other customers' slot lists. Holds live in Redis and expire on their own.
+
+| Endpoint | Result |
+|---|---|
+| `POST /api/slot-holds` | `{"service": "leak-repair", "addressId": "…", "start": "2026-11-30T09:00:00Z"}` → `201` with `holdId`, `start`, `end`, `expiresAt`. `409 slot-unavailable` if no provider is free any more. |
+| `GET /api/slot-holds/current` | My active hold, or `404` |
+| `DELETE /api/slot-holds/{id}` | `204`. Frees the time straight away. |
+
+- `start` must be a value returned by `GET /api/slots`.
+- Each customer has one hold; holding another slot replaces it (even if the times overlap).
+- Two customers can never hold the same provider at the same time: the claim runs as one atomic Redis script.
+- The provider isn't revealed until the booking is confirmed.
+- `SLOT_HOLD_TTL` changes the hold length (default `10m`).
+
 ### First admin account
 
 Admins can't self-register. To create the first one, set both variables when starting the API:
@@ -347,6 +390,7 @@ src/main/java/com/uel/homehelp/   application code, one package per feature
   address/                        user addresses
   provider/                       provider profiles
   catalog/                        service categories and services
+  booking/                        available slots and slot holds (bookings to come)
   common/                         shared helpers, error handling, OpenAPI config
 src/main/resources/               configuration
 src/main/resources/db/migration/  Flyway SQL migrations

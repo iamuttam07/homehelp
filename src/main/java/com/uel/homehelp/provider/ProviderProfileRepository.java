@@ -1,5 +1,6 @@
 package com.uel.homehelp.provider;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,5 +22,25 @@ interface ProviderProfileRepository extends JpaRepository<ProviderProfile, UUID>
 	Optional<ProviderProfile> findByIdForUpdate(@Param("userId") UUID userId);
 
 	Page<ProviderProfile> findByStatus(OnboardingStatus status, Pageable pageable);
+
+	/**
+	 * Approved providers who offer the service and whose service area covers the point.
+	 * The first distance check uses the GIST index with the largest allowed radius; the
+	 * second applies each provider's own radius.
+	 */
+	@Query(value = """
+			SELECT p.user_id FROM provider_profiles p
+			JOIN provider_services ps ON ps.provider_id = p.user_id
+			WHERE ps.service_id = :serviceId
+			  AND p.status = 'APPROVED'
+			  AND ST_DWithin(p.base_location,
+			                 CAST(ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326) AS geography),
+			                 :maxRadiusMetres)
+			  AND ST_DWithin(p.base_location,
+			                 CAST(ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326) AS geography),
+			                 p.service_radius_km * 1000)
+			""", nativeQuery = true)
+	List<UUID> findEligibleProviderIds(@Param("serviceId") UUID serviceId, @Param("latitude") double latitude,
+			@Param("longitude") double longitude, @Param("maxRadiusMetres") double maxRadiusMetres);
 
 }

@@ -1,5 +1,6 @@
 package com.uel.homehelp.provider;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,6 +14,8 @@ interface AvailabilityWindowRepository extends JpaRepository<AvailabilityWindow,
 	List<AvailabilityWindow> findByProviderId(UUID providerId);
 
 	boolean existsByProviderId(UUID providerId);
+
+	List<AvailabilityWindow> findByProviderIdIn(Collection<UUID> providerIds);
 
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("delete from AvailabilityWindow w where w.providerId = :providerId")
