@@ -21,6 +21,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.ObjectError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -71,16 +72,32 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	protected ResponseEntity<Object> handleHandlerMethodValidationException(HandlerMethodValidationException ex,
 			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
 		List<Map<String, String>> errors = new ArrayList<>();
-		ex.getParameterValidationResults().forEach((result) -> {
+		boolean bodyErrors = false;
+		for (var result : ex.getParameterValidationResults()) {
 			RequestParam param = result.getMethodParameter().getParameterAnnotation(RequestParam.class);
 			String name = (param != null && !param.name().isEmpty()) ? param.name()
 					: result.getMethodParameter().getParameterName();
-			result.getResolvableErrors().forEach((error) -> errors.add(fieldError(name, error.getDefaultMessage())));
-		});
+			for (var error : result.getResolvableErrors()) {
+				// A @Valid request body validated together with constrained parameters reports
+				// its own field errors here; use the field name, not the parameter name.
+				if (error instanceof FieldError fieldError) {
+					bodyErrors = true;
+					errors.add(fieldError(fieldError.getField(), fieldError.getDefaultMessage()));
+				}
+				else if (error instanceof ObjectError objectError) {
+					bodyErrors = true;
+					errors.add(fieldError(objectError.getObjectName(), objectError.getDefaultMessage()));
+				}
+				else {
+					errors.add(fieldError(name, error.getDefaultMessage()));
+				}
+			}
+		}
 		errors.sort((a, b) -> (a.get("field") + a.get("message")).compareTo(b.get("field") + b.get("message")));
 
 		ProblemDetail problem = ApiException.problem(HttpStatus.BAD_REQUEST, "validation-failed",
-				"Validation failed", "One or more parameters are invalid.");
+				"Validation failed",
+				bodyErrors ? "One or more fields are invalid." : "One or more parameters are invalid.");
 		problem.setProperty("errors", errors);
 		return handleExceptionInternal(ex, problem, headers, status, request);
 	}

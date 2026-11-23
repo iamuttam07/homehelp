@@ -148,6 +148,11 @@ class SlotHoldStore {
 		return true;
 	}
 
+	/** Start of the 15-minute cell that contains the instant. */
+	static Instant cellStart(Instant instant) {
+		return Instant.ofEpochSecond(cellIndex(instant) * CELL_SECONDS);
+	}
+
 	private static long cellIndex(Instant instant) {
 		return Math.floorDiv(instant.getEpochSecond(), CELL_SECONDS);
 	}

@@ -48,6 +48,7 @@ class ProviderAvailabilityApiTests {
 
 	@BeforeEach
 	void createProvider() {
+		this.jdbc.update("DELETE FROM bookings");
 		this.jdbc.update("DELETE FROM users");
 		this.provider = this.testUsers.create("ravi@example.com", Role.PROVIDER);
 	}

@@ -54,6 +54,7 @@ class ErrorHandlingTests {
 
 	@BeforeEach
 	void createUser() {
+		this.jdbc.update("DELETE FROM bookings");
 		this.jdbc.update("DELETE FROM users");
 		this.bearer = this.testUsers.create("asha@example.com", Role.CUSTOMER).bearer();
 	}

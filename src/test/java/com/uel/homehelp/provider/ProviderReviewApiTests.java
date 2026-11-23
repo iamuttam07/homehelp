@@ -60,6 +60,7 @@ class ProviderReviewApiTests {
 
 	@BeforeEach
 	void createUsers() throws Exception {
+		this.jdbc.update("DELETE FROM bookings");
 		this.jdbc.update("DELETE FROM users");
 		this.admin = this.testUsers.create("admin@example.com", Role.ADMIN);
 		this.ravi = submittedProvider("ravi@example.com");

@@ -353,7 +353,7 @@ A provider counts when they are `APPROVED`, offer the service, cover the address
 - At least 2 hours' notice; dates from today up to 30 days ahead (otherwise `400 invalid-date`).
 - `timeZone` (default `Europe/London`) is the zone of `date` and of the returned times. Region ids only; fixed offsets like `+01:00` are rejected because they ignore daylight saving.
 - Provider hours are converted from their own time zone, with correct lengths across clock changes.
-- Times held by other customers are left out (your own hold still shows). Confirmed bookings are subtracted in Step 18.
+- Times held by other customers or already booked are left out (your own hold still shows).
 
 ### Slot holds
 
@@ -370,6 +370,37 @@ While a customer finishes booking, their chosen slot is held for them for **10 m
 - Two customers can never hold the same provider at the same time: the claim runs as one atomic Redis script.
 - The provider isn't revealed until the booking is confirmed.
 - `SLOT_HOLD_TTL` changes the hold length (default `10m`).
+
+### Bookings
+
+A booking is made from a slot hold and keeps a copy of the service, price, and address, so later catalog changes or a deleted address never change it.
+
+```
+CONFIRMED ──provider starts──► IN_PROGRESS ──provider completes──► COMPLETED
+    │                               │
+    └──cancel──► CANCELLED ◄──admin─┘
+```
+
+| Endpoint | Who | Result |
+|---|---|---|
+| `POST /api/bookings` | Customer | `{"holdId": "…", "notes": "…"}` → `201 CONFIRMED`; the hold is used up. `409 slot-unavailable` if the provider was lost meanwhile. |
+| `GET /api/bookings?status=` | Customer | My bookings, soonest first |
+| `GET /api/bookings/{id}` | Customer, provider, or admin | One booking with its full `history` (others get `404`) |
+| `POST /api/bookings/{id}/cancel` | Customer | Optional `{"reason"}` |
+| `POST /api/bookings/{id}/reschedule` | Customer | `{"start": "…"}` (a time from `GET /api/slots`) |
+| `GET /api/provider/bookings?status=` | Provider | My jobs, with the customer's name and phone |
+| `POST /api/provider/bookings/{id}/start` | Provider | From 30 minutes before the booked time |
+| `POST /api/provider/bookings/{id}/complete` | Provider | Only once started |
+| `POST /api/provider/bookings/{id}/cancel` | Provider | `{"reason"}` required |
+| `POST /api/admin/bookings/{id}/cancel` | Admin | `{"reason"}` required; also works for jobs in progress |
+
+**Cancellation and rescheduling rules**
+
+- Customers and providers can cancel a `CONFIRMED` booking until its start time. A customer cancelling within **24 hours** of the start is marked `late` (a fee will apply once payments exist).
+- Admins can also cancel a job that is `IN_PROGRESS`.
+- Customers can reschedule a `CONFIRMED` booking until **24 hours** before it starts, at most **twice**. The same provider is kept when they're free at the new time; otherwise another eligible provider takes it.
+- A provider can never have two active bookings that overlap: the database enforces this with an exclusion constraint, whatever code path writes the booking.
+- Rule breaks return `409` with a specific `type`: `invalid-booking-transition`, `booking-already-started`, `too-early-to-start`, `too-late-to-reschedule`, `reschedule-limit-reached`.
 
 ### First admin account
 
@@ -390,7 +421,7 @@ src/main/java/com/uel/homehelp/   application code, one package per feature
   address/                        user addresses
   provider/                       provider profiles
   catalog/                        service categories and services
-  booking/                        available slots and slot holds (bookings to come)
+  booking/                        slots, holds, bookings, cancellation and rescheduling
   common/                         shared helpers, error handling, OpenAPI config
 src/main/resources/               configuration
 src/main/resources/db/migration/  Flyway SQL migrations

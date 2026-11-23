@@ -42,6 +42,7 @@ class ProviderProfileApiTests {
 
 	@BeforeEach
 	void clearUsers() {
+		this.jdbc.update("DELETE FROM bookings");
 		this.jdbc.update("DELETE FROM users");
 	}
 

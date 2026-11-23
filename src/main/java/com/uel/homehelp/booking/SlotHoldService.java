@@ -42,16 +42,19 @@ class SlotHoldService {
 
 	private final SlotHoldStore store;
 
+	private final BusyTimes busyTimes;
+
 	private final BookingProperties properties;
 
 	private final Clock clock;
 
 	SlotHoldService(HomeServiceRepository services, AddressLookup addresses, ProviderSchedules schedules,
-			SlotHoldStore store, BookingProperties properties, Clock clock) {
+			SlotHoldStore store, BusyTimes busyTimes, BookingProperties properties, Clock clock) {
 		this.services = services;
 		this.addresses = addresses;
 		this.schedules = schedules;
 		this.store = store;
+		this.busyTimes = busyTimes;
 		this.properties = properties;
 		this.clock = clock;
 	}
@@ -82,10 +85,13 @@ class SlotHoldService {
 
 		SlotHold current = this.store.findByUser(userId).orElse(null);
 		UUID currentId = (current != null) ? current.holdId() : null;
-		List<ProviderWeek> providers = this.schedules.findEligible(service.getId(), address.latitude(),
-				address.longitude());
-		Map<UUID, Set<Instant>> held = this.store.heldCells(providers.stream().map(ProviderWeek::providerId).toList(),
-				start, end, currentId);
+		List<ProviderWeek> providers = this.schedules
+			.findEligible(service.getId(), address.latitude(), address.longitude())
+			.stream()
+			.filter((p) -> !p.providerId().equals(userId))
+			.toList();
+		Map<UUID, Set<Instant>> held = this.busyTimes.cells(providers.stream().map(ProviderWeek::providerId).toList(),
+				start, end, currentId, null);
 
 		Duration ttl = this.properties.holdTtl();
 		for (ProviderWeek provider : providers) {

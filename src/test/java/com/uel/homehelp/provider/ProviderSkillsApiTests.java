@@ -51,6 +51,7 @@ class ProviderSkillsApiTests {
 
 	@BeforeEach
 	void createProvider() throws Exception {
+		this.jdbc.update("DELETE FROM bookings");
 		this.jdbc.update("DELETE FROM users");
 		this.provider = registerProvider("ravi@example.com");
 	}

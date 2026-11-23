@@ -23,4 +23,12 @@ public class AddressLookup {
 			.map((a) -> new AddressPoint(a.getId(), a.getLatitude(), a.getLongitude()));
 	}
 
+	/** The full address, if it exists and belongs to this user. */
+	@Transactional(readOnly = true)
+	public Optional<AddressDetails> findDetailsOwnedBy(UUID userId, UUID addressId) {
+		return this.addresses.findByIdAndUserId(addressId, userId)
+			.map((a) -> new AddressDetails(a.getId(), a.getLine1(), a.getLine2(), a.getCity(), a.getPostcode(),
+					a.getCountryCode(), a.getLatitude(), a.getLongitude()));
+	}
+
 }

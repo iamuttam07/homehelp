@@ -50,6 +50,7 @@ class AddressConcurrencyTests {
 
 	@BeforeEach
 	void createUser() {
+		this.jdbc.update("DELETE FROM bookings");
 		this.jdbc.update("DELETE FROM users");
 		this.userId = this.testUsers.create("asha@example.com", Role.CUSTOMER).user().getId();
 	}

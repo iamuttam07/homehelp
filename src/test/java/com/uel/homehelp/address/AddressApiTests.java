@@ -54,6 +54,7 @@ class AddressApiTests {
 
 	@BeforeEach
 	void createUsers() {
+		this.jdbc.update("DELETE FROM bookings");
 		this.jdbc.update("DELETE FROM users");
 		this.asha = this.testUsers.create("asha@example.com", Role.CUSTOMER);
 		this.ravi = this.testUsers.create("ravi@example.com", Role.CUSTOMER);

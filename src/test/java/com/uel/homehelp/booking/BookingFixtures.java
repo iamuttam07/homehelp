@@ -42,8 +42,9 @@ final class BookingFixtures {
 	}
 
 	/** An approved provider in Shoreditch (5 km) offering leak-repair, Mondays 09:00-12:00. */
-	static UUID approvedProvider(JdbcTemplate jdbc, TestUsers users, String email) {
-		UUID id = users.create(email, Role.PROVIDER).user().getId();
+	static LoggedInUser approvedProvider(JdbcTemplate jdbc, TestUsers users, String email) {
+		LoggedInUser provider = users.create(email, Role.PROVIDER);
+		UUID id = provider.user().getId();
 		jdbc.update("""
 				UPDATE provider_profiles SET status = 'APPROVED', base_latitude = 51.5202, base_longitude = -0.0716,
 				service_radius_km = 5 WHERE user_id = ?""", id);
@@ -52,7 +53,28 @@ final class BookingFixtures {
 		jdbc.update("""
 				INSERT INTO provider_availability (provider_id, day_of_week, start_time, end_time)
 				VALUES (?, 1, '09:00', '12:00')""", id);
-		return id;
+		return provider;
+	}
+
+	/**
+	 * Inserts a leak-repair booking directly, so tests can choose any time and status
+	 * (including ones the API wouldn't allow to be created, e.g. in an hour).
+	 */
+	static UUID booking(JdbcTemplate jdbc, UUID customerId, UUID providerId, Instant start, String status) {
+		return jdbc.queryForObject("""
+				INSERT INTO bookings (customer_id, provider_id, service_id, service_slug, service_name, duration_minutes,
+				    price_amount, currency, address_line1, address_city, address_postcode, address_country_code,
+				    latitude, longitude, start_at, end_at, status, cancelled_at)
+				SELECT ?, ?, id, slug, name, 60, base_price, currency, '1 Test St', 'London', 'E1 1AA', 'GB',
+				    51.5202, -0.0716, ?, ?, ?, CASE WHEN ? = 'CANCELLED' THEN now() END
+				FROM services WHERE slug = 'leak-repair' RETURNING id""", UUID.class, customerId, providerId,
+				java.sql.Timestamp.from(start), java.sql.Timestamp.from(start.plusSeconds(3600)), status, status);
+	}
+
+	/** Bookings reference users, so they must go first. */
+	static void clearBookingsAndUsers(JdbcTemplate jdbc) {
+		jdbc.update("DELETE FROM bookings");
+		jdbc.update("DELETE FROM users");
 	}
 
 	static void flushRedis(StringRedisTemplate redis) {

@@ -32,7 +32,8 @@ import com.uel.homehelp.provider.ProviderWeek;
  *
  * <p>A slot is offered when at least one provider is approved, offers the service,
  * covers the address, is working for the whole job, and isn't held by another customer
- * (the caller's own hold still counts as free). Bookings are subtracted in Step 18.
+ * (the caller's own hold still counts as free) or booked. Customers never see
+ * themselves as a provider.
  */
 @Service
 class SlotService {
@@ -53,14 +54,17 @@ class SlotService {
 
 	private final SlotHoldStore holds;
 
+	private final BusyTimes busyTimes;
+
 	private final Clock clock;
 
 	SlotService(HomeServiceRepository services, AddressLookup addresses, ProviderSchedules schedules,
-			SlotHoldStore holds, Clock clock) {
+			SlotHoldStore holds, BusyTimes busyTimes, Clock clock) {
 		this.services = services;
 		this.addresses = addresses;
 		this.schedules = schedules;
 		this.holds = holds;
+		this.busyTimes = busyTimes;
 		this.clock = clock;
 	}
 
@@ -83,13 +87,16 @@ class SlotService {
 
 		Duration duration = Duration.ofMinutes(service.getDurationMinutes());
 		Instant earliestStart = this.clock.instant().plus(MIN_NOTICE);
-		List<ProviderWeek> providers = this.schedules.findEligible(service.getId(), address.latitude(),
-				address.longitude());
+		List<ProviderWeek> providers = this.schedules
+			.findEligible(service.getId(), address.latitude(), address.longitude())
+			.stream()
+			.filter((p) -> !p.providerId().equals(userId))
+			.toList();
 		UUID ownHoldId = this.holds.findByUser(userId).map(SlotHold::holdId).orElse(null);
 		Instant dayStart = date.atStartOfDay(zone).toInstant();
 		Instant lastPossibleEnd = date.plusDays(1).atStartOfDay(zone).toInstant().plus(duration);
-		Map<UUID, Set<Instant>> held = this.holds.heldCells(providers.stream().map(ProviderWeek::providerId).toList(),
-				dayStart, lastPossibleEnd, ownHoldId);
+		Map<UUID, Set<Instant>> held = this.busyTimes.cells(providers.stream().map(ProviderWeek::providerId).toList(),
+				dayStart, lastPossibleEnd, ownHoldId, null);
 
 		Map<Instant, Integer> providersPerStart = new TreeMap<>();
 		for (ProviderWeek provider : providers) {
