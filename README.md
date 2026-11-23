@@ -244,6 +244,50 @@ Providers only (`/api/provider/**`). A profile is created automatically when som
 | `GET /api/provider/profile` | | The provider's profile |
 | `PUT /api/provider/profile` | `{"bio": "...", "yearsOfExperience": 12}` | Updated profile. `bio` up to 1000 characters, experience 0 to 60. |
 
+### Provider skills
+
+Which catalog services a provider offers. Providers only.
+
+| Endpoint | Body | Result |
+|---|---|---|
+| `GET /api/provider/skills` | | My skills, in catalog order. Services that were deactivated are left out. |
+| `PUT /api/provider/skills` | `{"serviceSlugs": ["leak-repair", "boiler-service"]}` | Replaces **all** skills (an empty list removes them). Up to 20; duplicates and letter case are ignored. |
+
+Unknown or inactive slugs return `400 unknown-services` with an `unknownSlugs` list, and the existing skills are left unchanged.
+
+### Provider service area
+
+Where a provider travels to work: everything within `radiusKm` of a base point. Providers only.
+
+| Endpoint | Body | Result |
+|---|---|---|
+| `GET /api/provider/service-area` | | The area, or `404 service-area-not-found` until it's set |
+| `PUT /api/provider/service-area` | `{"latitude": 51.5202, "longitude": -0.0716, "radiusKm": 5}` | Sets or replaces the area. Radius 1 to 50 km. |
+
+As with addresses, the database derives a PostGIS `base_location` from the coordinates, ready for distance-based matching.
+
+### Provider availability
+
+Weekly working hours, in the provider's time zone. Providers only.
+
+| Endpoint | Result |
+|---|---|
+| `GET /api/provider/availability` | The week, sorted by day and start time. New providers have no windows and `Europe/London`. |
+| `PUT /api/provider/availability` | Replaces the **whole week** (an empty `windows` list means not available) |
+
+```json
+{
+  "timeZone": "Europe/London",
+  "windows": [
+    { "dayOfWeek": "MONDAY",   "start": "09:00", "end": "12:00" },
+    { "dayOfWeek": "MONDAY",   "start": "14:00", "end": "18:00" },
+    { "dayOfWeek": "SATURDAY", "start": "10:00", "end": "14:00" }
+  ]
+}
+```
+
+Rules: times are `HH:mm` on quarter hours; each window ends after it starts on the same day (no overnight windows); windows on the same day can touch but not overlap; up to 4 per day; `timeZone` is an IANA id. A rule break returns `400 invalid-availability` with a `problems` list naming every issue, and the existing week is left unchanged.
+
 ### Access rules
 
 | Path | Who |
@@ -263,6 +307,36 @@ Access tokens last 15 minutes and refresh tokens 14 days (see [ADR 0003](docs/ad
 | `JWT_SECRET` | a development-only value | **Set this outside local development.** At least 32 bytes, e.g. `openssl rand -base64 48`. |
 | `JWT_ACCESS_TOKEN_TTL` | `15m` | |
 | `JWT_REFRESH_TOKEN_TTL` | `14d` | |
+| `HOMEHELP_ADMIN_EMAIL` / `HOMEHELP_ADMIN_PASSWORD` | unset | Creates the first admin at startup (see above) |
+
+### Provider onboarding and approval
+
+A provider fills in skills, service area, and availability, then submits for review. Only `APPROVED` providers will receive jobs.
+
+```
+ONBOARDING ──submit──► PENDING_REVIEW ──approve──► APPROVED
+                            │
+                            └──reject (reason)──► REJECTED ──fix and submit──► PENDING_REVIEW
+```
+
+| Endpoint | Who | Result |
+|---|---|---|
+| `GET /api/provider/onboarding` | Provider | Status, a checklist (`skills`, `serviceArea`, `availability`), `canSubmit`, and the rejection reason if any |
+| `POST /api/provider/onboarding/submit` | Provider | `PENDING_REVIEW`. `409 profile-incomplete` lists what's `missing`; `409 onboarding-conflict` if already submitted or approved. |
+| `GET /api/admin/providers?status=PENDING_REVIEW` | Admin | Providers with that status (default: the review queue), oldest submission first, paginated |
+| `GET /api/admin/providers/{id}` | Admin | Full profile: contact details, bio, skills, service area, availability |
+| `POST /api/admin/providers/{id}/approve` | Admin | `APPROVED`. Only from `PENDING_REVIEW`, otherwise `409`. |
+| `POST /api/admin/providers/{id}/reject` | Admin | `{"reason": "..."}` (required, shown to the provider). Only from `PENDING_REVIEW`. |
+
+### First admin account
+
+Admins can't self-register. To create the first one, set both variables when starting the API:
+
+```bash
+HOMEHELP_ADMIN_EMAIL=admin@example.com HOMEHELP_ADMIN_PASSWORD='choose-a-long-password' ./mvnw spring-boot:run
+```
+
+It is created only if no account with that email exists, and an existing account is never changed. The password must be at least 12 characters. After the first start the variables can be removed.
 
 ## Project layout
 

@@ -1,5 +1,7 @@
 package com.uel.homehelp.catalog;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,5 +23,9 @@ public interface HomeServiceRepository extends JpaRepository<HomeService, UUID>,
 
 	@EntityGraph(attributePaths = "category")
 	Optional<HomeService> findBySlugAndActiveTrueAndCategoryActiveTrue(String slug);
+
+	/** Active services (in active categories) with these slugs; unknown slugs are simply missing. */
+	@EntityGraph(attributePaths = "category")
+	List<HomeService> findBySlugInAndActiveTrueAndCategoryActiveTrue(Collection<String> slugs);
 
 }
